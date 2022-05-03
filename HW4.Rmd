@@ -1,0 +1,178 @@
+---
+title: "HW4"
+output: html_document
+date: '2022-05-03'
+---
+
+```{r}
+library(tidymodels)
+library(ISLR)
+library(ISLR2)
+library(tidyverse)
+library(discrim)
+library(poissonreg)
+library(corrr)
+library(klaR)
+tidymodels_prefer()
+```
+
+```{r}
+titanic <- read_csv("data/titanic.csv")
+set.seed(2022)
+
+titanic$survived =  factor(titanic$survived, levels = c("Yes", "No")) 
+titanic$pclass =  factor(titanic$pclass)
+
+```
+
+##Q1
+
+
+```{r}
+
+titanic_split <- initial_split(titanic, strata = survived, prop = 0.8)
+titanic_train <- training(titanic_split)
+titanic_test <- testing(titanic_split)
+dim(titanic_train)
+dim(titanic_test)
+```
+
+We can tell number of observations by using dim().
+
+
+```{r}
+
+titanic_recipe <- recipe(survived ~ pclass + sex + age + sib_sp + parch + fare, data = titanic_train) %>% 
+  step_impute_linear(age) %>%
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact(~ starts_with("sex"):age + age:fare)
+
+```
+
+##Q2
+
+
+```{r}
+titanic_folds <- vfold_cv(titanic_train, v = 10)
+```
+
+
+##Q3
+
+
+
+
+
+*In Q2, we split training titanic sample into 10 small samples, one of unique group as a hold out or test data set, and remaining groups as a training data set, then each sample is given the opportunity to be used in the hold out set 1 time and used to train the model k-1 times, at last, k results  be averaged to produce a single estimation.*
+
+*The advantage of this method is to use a limited sample in order to estimate how the model is expected to perform in general when used to make predictions on data not used during the training of the model, and, each observation is used for validation exactly once.*
+
+*If we used the entire training set that would be a validation approach.*
+
+
+
+
+
+##Q4
+
+
+```{r}
+log_reg <- logistic_reg() %>% 
+  set_engine("glm") %>% 
+  set_mode("classification")
+
+log_wkflow <- workflow() %>% 
+  add_model(log_reg) %>% 
+  add_recipe(titanic_recipe)
+
+lda_mod <- discrim_linear() %>% 
+  set_mode("classification") %>% 
+  set_engine("MASS")
+
+lda_wkflow <- workflow() %>% 
+  add_model(lda_mod) %>% 
+  add_recipe(titanic_recipe)
+
+qda_mod <- discrim_quad() %>% 
+  set_mode("classification") %>% 
+  set_engine("MASS")
+
+qda_wkflow <- workflow() %>% 
+  add_model(qda_mod) %>% 
+  add_recipe(titanic_recipe)
+```
+
+
+
+3x10 = 30, will fit 30 models
+
+
+##Q5
+
+
+```{r}
+log_fit <- fit_resamples(log_wkflow, titanic_folds)
+lda_fit <- fit_resamples(lda_wkflow, titanic_folds)
+qda_fit <- fit_resamples(qda_wkflow, titanic_folds)
+```
+
+
+##Q6
+
+
+```{r}
+collect_metrics(log_fit)
+collect_metrics(lda_fit)
+collect_metrics(qda_fit)
+
+```
+From above, we can tell that logistic regression model performed the best. It has the highest mean accuracy and smallest standard error  of the two other model.
+
+
+
+##Q7
+
+
+```{r}
+Best_fit <- fit(log_wkflow, titanic_train)
+```
+
+
+##Q8
+
+
+```{r}
+titanic_testing_pred <- 
+  predict(Best_fit, titanic_test) %>% 
+  bind_cols(titanic_test %>% select(survived))%>% 
+  bind_cols(predict(Best_fit, titanic_test, type = "prob")) %>% 
+  accuracy(truth = survived, .pred_class)
+
+titanic_testing_pred
+```
+##Q9
+We should derivative from matrix form for which $y= Xb +\epsilon$
+
+
+$\begin{bmatrix}y_{1} \\y_{2} \\\vdots \\y_{N}\end{bmatrix}=\begin{bmatrix}x_{11} & x_{12} & \cdots & x_{1K} \\x_{21} & x_{22} & \cdots & x_{2K} \\\vdots & \ddots & \ddots & \vdots \\x_{N1} & x_{N2} & \cdots & x_{NK}\end{bmatrix}*\begin{bmatrix}b_{1} \\b_{2} \\\vdots \\b_{K}\end{bmatrix}+\begin{bmatrix}\epsilon_{1} \\\epsilon_{2} \\\vdots \\\epsilon_{N}\end{bmatrix}$
+
+$\epsilon'\epsilon = \begin{bmatrix}e_{1} & e_{2} & \cdots & e_{N} \\\end{bmatrix}\begin{bmatrix}e_{1} \\e_{2} \\\vdots \\e_{N}\end{bmatrix} = \sum_{i=1}^{N}e_{i}^{2}$
+
+$e'e = (y-Xb)'(y-Xb)$
+
+$e'e = y'y - 2b'X'y + b'X'Xb$
+
+$\frac{\partial(e'e)}{\partial b} = -2X'y + 2X'Xb \stackrel{!}{=}0$
+
+$X'Xb=X'y$
+
+$b=(X'X)^{-1}X'y$
+
+
+
+##Q10
+
+
+```{r}
+
+```
